@@ -58,7 +58,7 @@ async function runWorkerCycle() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         query: { exists: { field: "text" } },
-        sort: { "date": { "order": "desc" } },
+        sort: [{ start_date: { order: "desc" } }],
         size: 15
       })
     });
@@ -74,7 +74,7 @@ async function runWorkerCycle() {
       const id = hit._id;
       const source = hit._source;
       const title = source.name || 'Geen titel';
-      const date = (source.sort_date || 'Onbekend').substring(0, 10);
+      const date = (source.start_date || 'Onbekend').substring(0, 10);
       const rawText = (source.text || []).join(" ").substring(0, 8000);
 
       // Check for document existence
