@@ -25,6 +25,16 @@ async function initDatabase(): Promise<Pool> {
       simplified_text TEXT
     )
   `);
+
+  // Voeg dit toe binnen de initDatabase() functie onder de bestaande CREATE TABLE:
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tilburg_users (
+      id SERIAL PRIMARY KEY,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
   return pool;
 }
 
