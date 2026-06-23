@@ -1,15 +1,27 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: tilburg_db
+    restart: always
+    environment:
+      POSTGRES_USER: politiek_user
+      POSTGRES_PASSWORD: politiek_secure_password_2026
+      POSTGRES_DB: tilburg_decisions
+    volumes:
+      # Named volume safely retains records even if you rebuild images
+      - pg-data:/var/lib/postgresql/data
+
   web:
     build:
       context: .
       dockerfile: Dockerfile
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-    volumes:
-      # Persistent storage volume so database writes aren't lost when updating containers
-      - db-data:/app/db
+      - DATABASE_URL=postgresql://politiek_user:politiek_secure_password_2026@postgres:5432/tilburg_decisions
+    depends_on:
+      - postgres
 
   worker:
     build:
@@ -17,11 +29,11 @@ services:
       dockerfile: Dockerfile
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-    volumes:
-      - db-data:/app/db
-    # Overrides the default web start command to trigger your garbage-collected interval script instead
+      - DATABASE_URL=postgresql://politiek_user:politiek_secure_password_2026@postgres:5432/tilburg_decisions
+    depends_on:
+      - postgres
     command: npm run worker
     restart: always
 
 volumes:
-  db-data:
+  pg-data:

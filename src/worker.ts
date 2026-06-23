@@ -1,203 +1,124 @@
 import { GoogleGenAI } from '@google/genai';
-import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
+import { Client } from 'pg';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-/**
- * All data variables are self-contained here. 
- * When this function resolves, its entire execution scope is discarded.
- */
 async function runWorkerCycle() {
-    console.log(`[⏰ WORKER START] Wake cycle initiated...`);
+  console.log(`[⏰ WORKER START] Wake cycle initiated...`);
+  
+  // Connect using a dedicated single client for the worker run
+  const client = new Client({
+    connectionString: process.env.DATABASE_URL,
+  });
+  await client.connect();
 
-    // 1. Initialize API SDK locally inside the run block
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
-    // 2. Open DB locally
-    const database = await open({
-        filename: '/app/db/tilburg_decisions.db',
-        driver: sqlite3.Database
-    });
-
-    await database.exec(`
+  await client.query(`
     CREATE TABLE IF NOT EXISTS cached_decisions (
       id TEXT PRIMARY KEY, title TEXT, date TEXT, simplified_text TEXT
     )
   `);
 
-    try {
-        const API_URL = "https://api.openraadsinformatie.nl/v1/elastic/ori_tilburg*/_search";
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                query: { exists: { field: "text" } },
-                sort: [{ start_date: { order: "desc" } }],
-                size: 15
-            })
-        });
+  try {
+    const API_URL = "https://api.openraadsinformatie.nl/v1/elastic/ori_tilburg_documents/_search";
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: { exists: { field: "text" } },
+        sort: [{ sort_date: { order: "desc" } }],
+        size: 15
+      })
+    });
+    
+    const data = await response.json();
+    const hits = data.hits?.hits || [];
 
-        const data = await response.json();
-        const hits = data.hits?.hits || [];
+    for (const hit of hits) {
+      const id = hit._id;
+      const source = hit._source;
+      const title = source.name || 'Geen titel';
+      const date = (source.sort_date || 'Onbekend').substring(0, 10);
+      const rawText = (source.text || []).join(" ").substring(0, 8000);
 
-        for (const hit of hits) {
-            const id = hit._id;
-            const source = hit._source;
-            const title = source.name || 'Geen titel';
-            const date = (source.date_modified || 'Onbekend').substring(0, 10);
-            console.log(date);
+      // Fast presence check in Postgres
+      const checkRes = await client.query('SELECT id FROM cached_decisions WHERE id = $1', [id]);
+      if (checkRes.rowCount && checkRes.rowCount > 0) continue;
 
-            // Keep strings block-scoped
-            const rawText = (source.text || []).join(" ").substring(0, 8000);
+      if (rawText.trim()) {
+        let retryCount = 0;
+        const maxRetries = 3;
+        let success = false;
 
-            const cachedRow = await database.get('SELECT id FROM cached_decisions WHERE id = ?', id);
-            if (cachedRow) continue;
-
-            if (rawText.trim()) {
-                let retryCount = 0;
-                const maxRetries = 3;
-                let success = false;
-
-                while (retryCount < maxRetries && !success) {
-                    try {
-                        let aiResponse;
-                        try {
-                            aiResponse = await ai.models.generateContent({
-                                model: 'gemini-2.5-flash',
-                                contents: `Je bent een expert in begrijpelijke taal (B1-niveau). Herschrijf de volgende gemeentelijke tekst zodat deze makkelijk te lezen is voor een gemiddelde burger. Gebruik duidelijke tussenkopjes:\n\n${rawText}`,
-                            });
-                        } catch (err: any) {
-                            // If 503 (Overloaded) or 429 (Rate Limit), try 2.0-flash as immediate fallback
-                            if (err?.status === 503 || err?.status === 429) {
-                                console.log(`[⚠️ GEMINI BOTTLENECK] Status ${err.status}. Trying fallback model...`);
-                                aiResponse = await ai.models.generateContent({
-                                    model: 'gemini-2.0-flash',
-                                    contents: `Je bent een expert in begrijpelijke taal (B1-niveau). Herschrijf de volgende gemeentelijke tekst zodat deze makkelijk te lezen is voor een gemiddelde burger. Gebruik duidelijke tussenkopjes. Geef enkel de herschreven tekst terug en geen extra tekst:\n\n${rawText}`,
-                                });
-                            } else {
-                                throw err;
-                            }
-                        }
-
-                        const simplifiedText = aiResponse.text || "Fout bij genereren.";
-                        await database.run(
-                            'INSERT INTO cached_decisions (id, title, date, simplified_text) VALUES (?, ?, ?, ?)',
-                            id, title, date, simplifiedText
-                        );
-                        console.log(`[💾 SUCCESS] Saved translation for ${id}`);
-
-                        success = true; // Breaks the retry loop
-                        await delay(3000); // Increased safety delay between separate documents
-
-                    } catch (aiError: any) {
-                        retryCount++;
-
-                        if (aiError?.status === 429) {
-                            // Look for the exact retry delay from Google (defaults to 25 seconds if not readable)
-                            const waitTimeSec = 25;
-                            console.log(`[🛑 RATE LIMIT HIT] Exceeded free quota allocation. Sleeping for ${waitTimeSec} seconds before retry attempt ${retryCount}/${maxRetries}...`);
-
-                            await delay(waitTimeSec * 1000); // Dynamic backoff sleep window
-                        } else {
-                            console.error(`[❌ ERROR] Non-rate-limit error on doc ${id}:`, aiError?.message || aiError);
-                            await delay(3000);
-                            break; // Stop retrying if it's an unrecoverable structural error
-                        }
-                    }
-                }
-            } if (rawText.trim()) {
-                let retryCount = 0;
-                const maxRetries = 3;
-                let success = false;
-
-                while (retryCount < maxRetries && !success) {
-                    try {
-                        let aiResponse;
-                        try {
-                            aiResponse = await ai.models.generateContent({
-                                model: 'gemini-2.5-flash',
-                                contents: `Je bent een expert in begrijpelijke taal (B1-niveau). Herschrijf de volgende gemeentelijke tekst zodat deze makkelijk te lezen is voor een gemiddelde burger. Gebruik duidelijke tussenkopjes. Geef enkel de herschreven tekst terug en geen extra tekst:\n\n${rawText}`,
-                            });
-                        } catch (err: any) {
-                            // If 503 (Overloaded) or 429 (Rate Limit), try 2.0-flash as immediate fallback
-                            if (err?.status === 503 || err?.status === 429) {
-                                console.log(`[⚠️ GEMINI BOTTLENECK] Status ${err.status}. Trying fallback model...`);
-                                aiResponse = await ai.models.generateContent({
-                                    model: 'gemini-2.0-flash',
-                                    contents: `Je bent een expert in begrijpelijke taal (B1-niveau). Herschrijf de volgende gemeentelijke tekst zodat deze makkelijk te lezen is voor een gemiddelde burger. Gebruik duidelijke tussenkopjes:\n\n${rawText}`,
-                                });
-                            } else {
-                                throw err;
-                            }
-                        }
-
-                        const simplifiedText = aiResponse.text || "Fout bij genereren.";
-                        await database.run(
-                            'INSERT INTO cached_decisions (id, title, date, simplified_text) VALUES (?, ?, ?, ?)',
-                            id, title, date, simplifiedText
-                        );
-                        console.log(`[💾 SUCCESS] Saved translation for ${id}`);
-
-                        success = true; // Breaks the retry loop
-                        await delay(3000); // Increased safety delay between separate documents
-
-                    } catch (aiError: any) {
-                        retryCount++;
-
-                        if (aiError?.status === 429) {
-                            // Look for the exact retry delay from Google (defaults to 25 seconds if not readable)
-                            const waitTimeSec = 25;
-                            console.log(`[🛑 RATE LIMIT HIT] Exceeded free quota allocation. Sleeping for ${waitTimeSec} seconds before retry attempt ${retryCount}/${maxRetries}...`);
-
-                            await delay(waitTimeSec * 1000); // Dynamic backoff sleep window
-                        } else {
-                            console.error(`[❌ ERROR] Non-rate-limit error on doc ${id}:`, aiError?.message || aiError);
-                            await delay(3000);
-                            break; // Stop retrying if it's an unrecoverable structural error
-                        }
-                    }
-                }
+        while (retryCount < maxRetries && !success) {
+          try {
+            let aiResponse;
+            try {
+              aiResponse = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: `Je bent een expert in begrijpelijke taal (B1-niveau). Herschrijf de volgende gemeentelijke tekst zodat deze makkelijk te lezen is voor een gemiddelde burger. Gebruik duidelijke tussenkopjes:\n\n${rawText}`,
+              });
+            } catch {
+              aiResponse = await ai.models.generateContent({
+                model: 'gemini-2.0-flash',
+                contents: `Je bent een expert in begrijpelijke taal (B1-niveau). Herschrijf de volgende gemeentelijke tekst zodat deze makkelijk te lezen is voor een gemiddelde burger. Gebruik duidelijke tussenkopjes:\n\n${rawText}`,
+              });
             }
+
+            const simplifiedText = aiResponse.text || "Fout bij genereren.";
+            
+            // Standard Postgres upsert syntax
+            await client.query(
+              `INSERT INTO cached_decisions (id, title, date, simplified_text) 
+               VALUES ($1, $2, $3, $4) 
+               ON CONFLICT (id) DO NOTHING`,
+              [id, title, date, simplifiedText]
+            );
+            
+            console.log(`[💾 SUCCESS] Saved translation for ${id}`);
+            success = true;
+            await delay(3000);
+
+          } catch (aiError: any) {
+            retryCount++;
+            if (aiError?.status === 429) {
+              console.log(`[🛑 RATE LIMIT] Sleeping 25s...`);
+              await delay(25000);
+            } else {
+              console.error(`[❌ ERROR] Non-rate-limit failure:`, aiError?.message || aiError);
+              await delay(3000);
+              break;
+            }
+          }
         }
-    } catch (error) {
-        console.error("[❌ CRITICAL SYSTEM ERROR]", error);
-    } finally {
-        // CRITICAL: Fully close and release database handles/locks
-        await database.close();
-        console.log(`[📦 DB] Connection severed. Scope ready for cleanup.`);
+      }
     }
+  } catch (error) {
+    console.error("[❌ CRITICAL SYSTEM ERROR]", error);
+  } finally {
+    await client.end();
+    console.log(`[📦 DB] Client connection safely closed.`);
+  }
 }
 
 async function main() {
-    // Initial run
-    try { await runWorkerCycle(); } catch (e) { console.error(e); }
+  try { await runWorkerCycle(); } catch (e) { console.error(e); }
+  if (global.gc) global.gc();
 
-    // Call manual Garbage Collection if available
-    if (global.gc) {
-        console.log('[🧹 GC] Cleaning memory allocations explicitly...');
-        global.gc();
+  const ONE_HOUR = 60 * 60 * 1000;
+  setInterval(async () => {
+    try {
+      await runWorkerCycle();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      if (global.gc) global.gc();
     }
-
-    const ONE_HOUR = 60 * 60 * 1000;
-
-    setInterval(async () => {
-        try {
-            await runWorkerCycle();
-        } catch (e) {
-            console.error(e);
-        } finally {
-            // Force memory sweep after every single hour loop completes
-            if (global.gc) {
-                console.log('[🧹 GC] Running post-cycle garbage collection...');
-                global.gc();
-            }
-        }
-    }, ONE_HOUR);
+  }, ONE_HOUR);
 }
 
 main();
