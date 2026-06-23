@@ -46,7 +46,7 @@ function DecisionItem({ doc }: { doc: DecisionDocument }) {
         }`}
       >
         {/* GEUPGRADE: prose-invert zorgt voor perfecte lichte tekstkleuren binnen Markdown */}
-        <div className="prose prose-sm prose-invert max-w-none prose-headings:font-bold prose-headings:text-zinc-100 prose-p:text-zinc-300 prose-li:text-zinc-300">
+        <div className="prose prose-sm prose-invert max-w-none whitespace-pre-wrap prose-p:whitespace-pre-wrap prose-headings:font-bold prose-headings:text-zinc-100 prose-p:text-zinc-300 prose-li:text-zinc-300">
           <ReactMarkdown remarkPlugins={[remarkBreaks]}>{doc.simplifiedText}</ReactMarkdown>
         </div>
       </div>
