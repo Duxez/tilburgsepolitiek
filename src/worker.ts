@@ -106,26 +106,36 @@ async function runWorkerCycle() {
             let aiResponse;
             totalRequestsThisRun++; // Increment request count before the call
             console.log(`[🤖 GEMINI] Request ${totalRequestsThisRun}/${MAX_DAILY_QUOTA} -> Processing item ${id}`);
-
+            const promptText = `Je bent een expert in begrijpelijke taal (B1-niveau). Herschrijf de volgende gemeentelijke tekst zodat deze makkelijk te lezen is voor een gemiddelde burger. Gebruik duidelijke tussenkopjes. Geef enkel de herschreven tekst terug:\n\n${rawText}`;
+            
             try {
-              // Primary Attempt: 2.5 Flash
-              aiResponse = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: `Je bent een expert in begrijpelijke taal (B1-niveau). Herschrijf de volgende gemeentelijke tekst zodat deze makkelijk te lezen is voor een gemiddelde burger. Gebruik duidelijke tussenkopjes. Geef enkel de herschreven tekst:\n\n${rawText}`,
-              });
-            } catch (err: any) {
-              // Alternative Fallback Attempt: 2.5 Flash Lite
-              if (err?.status === 503 || err?.status === 429) {
-                console.log(`[⚠️ GEMINI BOTTLENECK] Status ${err.status}. Trying fallback model (gemini-2.5-flash-lite)...`);
-                
-                // Track the second model's call separately against daily allocation
-                totalRequestsThisRun++; 
-                aiResponse = await ai.models.generateContent({
-                  model: 'gemini-2.5-flash-lite',
-                  contents: `Je bent een expert in begrijpelijke taal (B1-niveau). Herschrijf de volgende gemeentelijke tekst zodat deze makkelijk te lezen is voor een gemiddelde burger. Gebruik duidelijke tussenkopjes. Geef enkel de herschreven tekst:\n\n${rawText}`,
-                });
-              } else {
-                throw err;
+              totalRequestsThisRun++;
+              console.log(`[🤖 GEMINI] Call ${totalRequestsThisRun}/${MAX_DAILY_QUOTA} -> Using gemini-2.5-flash for ${id}`);
+              aiResponse = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: promptText });
+            } catch (err1: any) {
+              if (totalRequestsThisRun >= MAX_DAILY_QUOTA) throw err1;
+              
+              // Attempt 2 Fallback: 2.5 Flash Lite
+              try {
+                totalRequestsThisRun++;
+                console.log(`[⚠️ FALLBACK 1] Trying gemini-2.5-flash-lite (Call ${totalRequestsThisRun}/${MAX_DAILY_QUOTA})`);
+                aiResponse = await ai.models.generateContent({ model: 'gemini-2.5-flash-lite', contents: promptText });
+              } catch (err2: any) {
+                if (totalRequestsThisRun >= MAX_DAILY_QUOTA) throw err2;
+
+                // Attempt 3 Fallback: 2.0 Flash
+                try {
+                  totalRequestsThisRun++;
+                  console.log(`[⚠️ FALLBACK 2] Trying gemini-2.0-flash (Call ${totalRequestsThisRun}/${MAX_DAILY_QUOTA})`);
+                  aiResponse = await ai.models.generateContent({ model: 'gemini-2.0-flash', contents: promptText });
+                } catch (err3: any) {
+                  if (totalRequestsThisRun >= MAX_DAILY_QUOTA) throw err3;
+
+                  // Attempt 4 Fallback: 2.0 Flash Lite
+                  totalRequestsThisRun++;
+                  console.log(`[⚠️ FALLBACK 3] Trying gemini-2.0-flash-lite (Call ${totalRequestsThisRun}/${MAX_DAILY_QUOTA})`);
+                  aiResponse = await ai.models.generateContent({ model: 'gemini-2.0-flash-lite', contents: promptText });
+                }
               }
             }
 
