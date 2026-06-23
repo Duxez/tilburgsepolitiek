@@ -46,40 +46,29 @@ function DecisionItem({ doc }: { doc: DecisionDocument }) {
           }`}
       >
         {/* GEUPGRADE: prose-invert zorgt voor perfecte lichte tekstkleuren binnen Markdown */}
-        <div className="prose prose-sm prose-invert max-w-none whitespace-pre-wrap prose-p:whitespace-pre-wrap prose-headings:font-bold prose-headings:text-zinc-100 prose-p:text-zinc-300 prose-li:text-zinc-300
-            /* 📊 Volledige Tabel Layout Overrides */
-            prose-table:w-full 
-            prose-table:my-8 
-            prose-table:border-collapse 
-            
-            /* 🔑 Kopteksten (Headers) */
-            prose-th:px-5 
-            prose-th:py-3.5 
-            prose-th:bg-zinc-900 
-            prose-th:text-zinc-100 
-            prose-th:font-semibold 
-            prose-th:text-left 
-            prose-th:border 
-            prose-th:border-zinc-800 
-            
-            /* 📝 Cellen (Data) */
-            prose-td:px-5 
-            prose-td:py-3.5 
-            prose-td:border 
-            prose-td:border-zinc-800 
-            prose-td:text-zinc-300 
-            prose-td:leading-relaxed
-            
-            /* 🎨 Subtiel kleurverschil tussen de rijen (Zebra-striping) */
-            prose-tr:bg-zinc-950
-            even:prose-tr:bg-zinc-900/40 
-            hover:prose-tr:bg-zinc-900/70 transition-colors">
-
+        <div className="prose prose-sm prose-invert max-w-none whitespace-pre-wrap prose-p:whitespace-pre-wrap prose-headings:font-bold prose-headings:text-zinc-100 prose-p:text-zinc-300 prose-li:text-zinc-300">
           <ReactMarkdown
-            remarkPlugins={[
-              remarkBreaks,
-              remarkGfm
-            ]}
+            remarkPlugins={[remarkBreaks, remarkGfm]}
+            // FIX: Forceer handmatige HTML-styling per element om remark-breaks te omzeilen
+            components={{
+              table: ({ node, ...props }) => (
+                <div className="overflow-x-auto my-8 border border-zinc-800 rounded-xl bg-zinc-950">
+                  <table className="w-full border-collapse text-left text-sm text-zinc-300" {...props} />
+                </div>
+              ),
+              thead: ({ node, ...props }) => (
+                <thead className="bg-zinc-900 text-zinc-100 font-semibold border-b border-zinc-800" {...props} />
+              ),
+              th: ({ node, ...props }) => (
+                <th className="px-6 py-4 border border-zinc-800 font-bold" {...props} />
+              ),
+              tr: ({ node, ...props }) => (
+                <tr className="bg-zinc-950 odd:bg-zinc-900/40 hover:bg-zinc-900/70 border-b border-zinc-800/50 transition-colors" {...props} />
+              ),
+              td: ({ node, ...props }) => (
+                <td className="px-6 py-4 border border-zinc-800/80 leading-relaxed font-normal" {...props} />
+              ),
+            }}
           >
             {doc.simplifiedText}
           </ReactMarkdown>
