@@ -16,7 +16,7 @@ async function initDatabase(): Promise<Database> {
   
   // Using an absolute path ensures both the worker and Next.js find the exact same file
   db = await open({
-    filename: path.resolve(process.cwd(), './tilburg_decisions.db'),
+    filename: path.resolve(process.cwd(), '/app/tilburg_decisions.db'),
     driver: sqlite3.Database
   });
 
