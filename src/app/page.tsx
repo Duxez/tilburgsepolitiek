@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { DecisionDocument } from '@/lib/decisions';
 import ReactMarkdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
 
 // Sub-component voor een inklapbaar besluit (Collapsible) in Darkmode
 function DecisionItem({ doc }: { doc: DecisionDocument }) {
@@ -46,7 +47,7 @@ function DecisionItem({ doc }: { doc: DecisionDocument }) {
       >
         {/* GEUPGRADE: prose-invert zorgt voor perfecte lichte tekstkleuren binnen Markdown */}
         <div className="prose prose-sm prose-invert max-w-none prose-headings:font-bold prose-headings:text-zinc-100 prose-p:text-zinc-300 prose-li:text-zinc-300">
-          <ReactMarkdown>{doc.simplifiedText}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkBreaks]}>{doc.simplifiedText}</ReactMarkdown>
         </div>
       </div>
     </article>
