@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    volumes:
+      # Persistent storage volume so database writes aren't lost when updating containers
+      - db-data:/app/db
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    volumes:
+      - db-data:/app/db
+    # Overrides the default web start command to trigger your garbage-collected interval script instead
+    command: npm run worker
+    restart: always
+
+volumes:
+  db-data:
