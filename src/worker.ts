@@ -111,7 +111,7 @@ async function runWorkerCycle() {
               // Primary Attempt: 2.5 Flash
               aiResponse = await ai.models.generateContent({
                 model: 'gemini-2.5-flash',
-                contents: `Je bent een expert in begrijpelijke taal (B1-niveau). Herschrijf de volgende gemeentelijke tekst zodat deze makkelijk te lezen is voor een gemiddelde burger. Gebruik duidelijke tussenkopjes:\n\n${rawText}`,
+                contents: `Je bent een expert in begrijpelijke taal (B1-niveau). Herschrijf de volgende gemeentelijke tekst zodat deze makkelijk te lezen is voor een gemiddelde burger. Gebruik duidelijke tussenkopjes. Geef enkel de herschreven tekst:\n\n${rawText}`,
               });
             } catch (err: any) {
               // Alternative Fallback Attempt: 2.5 Flash Lite
@@ -122,7 +122,7 @@ async function runWorkerCycle() {
                 totalRequestsThisRun++; 
                 aiResponse = await ai.models.generateContent({
                   model: 'gemini-2.5-flash-lite',
-                  contents: `Je bent een expert in begrijpelijke taal (B1-niveau). Herschrijf de volgende gemeentelijke tekst zodat deze makkelijk te lezen is voor een gemiddelde burger. Gebruik duidelijke tussenkopjes:\n\n${rawText}`,
+                  contents: `Je bent een expert in begrijpelijke taal (B1-niveau). Herschrijf de volgende gemeentelijke tekst zodat deze makkelijk te lezen is voor een gemiddelde burger. Gebruik duidelijke tussenkopjes. Geef enkel de herschreven tekst:\n\n${rawText}`,
                 });
               } else {
                 throw err;
