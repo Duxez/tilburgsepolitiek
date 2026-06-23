@@ -60,7 +60,7 @@ async function runWorkerCycle() {
   const remainingSlots = MAX_DAILY_QUOTA - totalRequestsThisRun;
   console.log(`[📊 CAPACITY] Safe slots remaining for this execution block: ${remainingSlots}`);
 
-  const API_URL = "https://api.openraadsinformatie.nl/v1/elastic/ori_tilburg_documents/_search";
+  const API_URL = "https://api.openraadsinformatie.nl/v1/elastic/ori_tilburg*/_search";
   
   try {
     const response = await fetch(API_URL, {
@@ -68,7 +68,7 @@ async function runWorkerCycle() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         query: { exists: { field: "text" } },
-        sort: [{ sort_date: { order: "desc" } }],
+        sort: [{ start_date: { order: "desc" } }],
         size: Math.min(remainingSlots, 15) // Never request more than our capacity space
       })
     });
@@ -87,7 +87,7 @@ async function runWorkerCycle() {
       const id = hit._id;
       const source = hit._source;
       const title = source.name || 'Geen titel';
-      const date = (source.sort_date || 'Onbekend').substring(0, 10);
+      const date = (source.start_date || 'Onbekend').substring(0, 10);
       const rawText = (source.text || []).join(" ").substring(0, 8000);
 
       // Presence Check
