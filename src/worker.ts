@@ -87,7 +87,9 @@ async function runWorkerCycle() {
       const id = hit._id;
       const source = hit._source;
       const title = source.name || 'Geen titel';
-      const date = (source.start_date || 'Onbekend').substring(0, 10);
+      // Controleer meerdere mogelijke datumvelden die Open Raadsinformatie gebruikt
+      const rawDate = source.start_date || source.sort_date || source.item_date || source.location_date;
+      const date = rawDate ? String(rawDate).substring(0, 10) : 'Onbekend';
       const rawText = (source.text || []).join(" ").substring(0, 8000);
 
       // Presence Check
