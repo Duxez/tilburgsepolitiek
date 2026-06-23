@@ -50,7 +50,7 @@ async function runWorkerCycle() {
   `);
 
   try {
-    const API_URL = "https://api.openraadsinformatie.nl/v1/elastic/ori_tilburg_documents/_search";
+    const API_URL = "https://api.openraadsinformatie.nl/v1/elastic/ori_tilburg*/_search";
     console.log(`[🌐 API REQUEST] Querying OpenBesluitvorming documents repository...`);
     
     const response = await fetch(API_URL, {
@@ -58,7 +58,7 @@ async function runWorkerCycle() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         query: { exists: { field: "text" } },
-        sort: [{ sort_date: { order: "desc" } }],
+        sort: { "date": { "order": "desc" } },
         size: 15
       })
     });
