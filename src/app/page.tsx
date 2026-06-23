@@ -26,7 +26,7 @@ function DecisionItem({ doc }: { doc: DecisionDocument }) {
             {doc.title}
           </h2>
         </div>
-        
+
         {/* Icoon dat meedraait wanneer open/dicht */}
         <div className="text-zinc-500 p-2">
           <svg
@@ -42,13 +42,47 @@ function DecisionItem({ doc }: { doc: DecisionDocument }) {
 
       {/* Inklapbare Content Sectie */}
       <div
-        className={`transition-all duration-300 ease-in-out overflow-hidden border-t border-zinc-800 bg-zinc-950/40 ${
-          isOpen ? 'max-h-[3000px] opacity-100 p-6' : 'max-h-0 opacity-0 p-0 pointer-events-none'
-        }`}
+        className={`transition-all duration-300 ease-in-out overflow-hidden border-t border-zinc-800 bg-zinc-950/40 ${isOpen ? 'max-h-[3000px] opacity-100 p-6' : 'max-h-0 opacity-0 p-0 pointer-events-none'
+          }`}
       >
         {/* GEUPGRADE: prose-invert zorgt voor perfecte lichte tekstkleuren binnen Markdown */}
-        <div className="prose prose-sm prose-invert max-w-none whitespace-pre-wrap prose-p:whitespace-pre-wrap prose-headings:font-bold prose-headings:text-zinc-100 prose-p:text-zinc-300 prose-li:text-zinc-300">
-          <ReactMarkdown remarkPlugins={[remarkBreaks, remarkGfm]}>{doc.simplifiedText}</ReactMarkdown>
+        <div className="prose prose-sm prose-invert max-w-none whitespace-pre-wrap prose-p:whitespace-pre-wrap prose-headings:font-bold prose-headings:text-zinc-100 prose-p:text-zinc-300 prose-li:text-zinc-300
+            /* 📊 Volledige Tabel Layout Overrides */
+            prose-table:w-full 
+            prose-table:my-8 
+            prose-table:border-collapse 
+            
+            /* 🔑 Kopteksten (Headers) */
+            prose-th:px-5 
+            prose-th:py-3.5 
+            prose-th:bg-zinc-900 
+            prose-th:text-zinc-100 
+            prose-th:font-semibold 
+            prose-th:text-left 
+            prose-th:border 
+            prose-th:border-zinc-800 
+            
+            /* 📝 Cellen (Data) */
+            prose-td:px-5 
+            prose-td:py-3.5 
+            prose-td:border 
+            prose-td:border-zinc-800 
+            prose-td:text-zinc-300 
+            prose-td:leading-relaxed
+            
+            /* 🎨 Subtiel kleurverschil tussen de rijen (Zebra-striping) */
+            prose-tr:bg-zinc-950
+            even:prose-tr:bg-zinc-900/40 
+            hover:prose-tr:bg-zinc-900/70 transition-colors">
+
+          <ReactMarkdown
+            remarkPlugins={[
+              remarkBreaks,
+              remarkGfm
+            ]}
+          >
+            {doc.simplifiedText}
+          </ReactMarkdown>
         </div>
       </div>
     </article>
@@ -60,7 +94,7 @@ export default function Home() {
   const [offset, setOffset] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [hasMore, setHasMore] = useState<boolean>(true);
-  
+
   const loaderRef = useRef<HTMLDivElement | null>(null);
   const LIMIT = 5;
 
@@ -137,7 +171,7 @@ export default function Home() {
               <span>Nieuwe besluiten laden...</span>
             </div>
           )}
-          
+
           {!hasMore && decisions.length > 0 && (
             <p className="text-zinc-500 text-sm font-medium">
               Einde van de beschikbare besluiten bereikt.
