@@ -20,7 +20,7 @@ async function runWorkerCycle() {
 
     // 2. Open DB locally
     const database = await open({
-        filename: '/app/tilburg_decisions.db',
+        filename: '/app/db/tilburg_decisions.db',
         driver: sqlite3.Database
     });
 
