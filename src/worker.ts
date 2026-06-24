@@ -88,13 +88,22 @@ async function runWorkerCycle() {
       const source = hit._source;
       const title = source.name || 'Geen titel';
       // Controleer meerdere mogelijke datumvelden die Open Raadsinformatie gebruikt
-      const rawDate = source.start_date || source.sort_date || source.item_date || source.location_date;
+      const rawDate = source.start_date || source.sort_date || source.item_date || source.location_date || source.date_modified;
       const date = rawDate ? String(rawDate).substring(0, 10) : 'Onbekend';
       const rawText = (source.text || []).join(" ").substring(0, 8000);
 
       // Presence Check
-      const checkRes = await client.query('SELECT id FROM cached_decisions WHERE id = $1', [id]);
-      if (checkRes.rowCount && checkRes.rowCount > 0) continue;
+      const checkRes = await client.query('SELECT id, date FROM cached_decisions WHERE id = $1', [id]);
+      if (checkRes.rowCount && checkRes.rowCount > 0) {
+        // Check if existing date is 'Onbekend' and new date is not
+        const existingDate = checkRes.rows[0].date;
+        if (existingDate === 'Onbekend' && date !== 'Onbekend') {
+          // Update the date
+          await client.query('UPDATE cached_decisions SET date = $1 WHERE id = $2', [date, id]);
+          console.log(`[🔄 UPDATE] Updated date from 'Onbekend' to '${date}' for ${id}`);
+        }
+        continue;
+      }
 
       if (rawText.trim()) {
         let retryCount = 0;
